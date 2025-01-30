@@ -5,6 +5,18 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- Add queries section for speech recognition -->
+    <queries>
+        <!-- Intent query for speech recognition service -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <!-- Query for voice interaction service if needed -->
+        <intent>
+            <action android:name="android.service.voice.VoiceInteractionService" />
+        </intent>
+    </queries>
+
     <application>
         <!-- Register the Voice Assistant Service -->
         <service
