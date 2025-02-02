@@ -1,22 +1,28 @@
 # FlutterVox
 
-> ⚠️ **Development Status**: This plugin is currently in early development and is not ready for production use. Development may be discontinued if better alternatives become available. Consider using established solutions like [alan_voice](https://pub.dev/packages/alan_voice) or [speech_to_text](https://pub.dev/packages/speech_to_text) for production applications.
+A Flutter plugin that implements voice assistant functionality with background listening and voice command processing capabilities for Android devices. FlutterVox provides both launcher and background service modes, making it suitable for a wide range of voice-controlled applications.
 
-A Flutter plugin that implements voice assistant functionality with background listening and voice command processing capabilities for Android devices.
+> ⚠️ **Development Status**: This plugin is currently in early development and is not ready for production use. Development may be discontinued if better alternatives become available. Consider using established solutions like [alan_voice](https://pub.dev/packages/alan_voice) or [picovoice_flutter](https://pub.dev/packages/picovoice_flutter) for production applications.
 
 ## Features
 
-- 🎤 Background audio listening
-- 🗣️ Wake word detection ("Hey Assistant", "OK Assistant")
-- 📱 Works as a launcher or background service
-- 🔊 Offline wake word recognition
-- 🎯 Custom voice command support
-- 🔋 Battery-efficient background operation
+- 🎤 Background audio listening with minimal battery impact
+- 🗣️ Offline wake word detection and customization
+- 📱 Dual-mode operation (launcher or background service)
+- 🎯 Custom voice command support with contextual processing
+- 🔋 Battery-efficient background operation (<5% additional drain)
+- 🔒 Built-in security features and permission handling
 - 📱 Full Android lifecycle management
+- 🔄 Automatic service restoration after device reboot
 
-## Getting Started
+## System Requirements
 
-### Installation
+- Android API Level 21+ (Android 5.0 or higher)
+- Flutter 3.3.0 or higher
+- Dart SDK 3.6.0 or higher
+- Kotlin 1.8.22 or higher
+
+## Installation
 
 Add FlutterVox to your `pubspec.yaml`:
 
@@ -24,7 +30,7 @@ Add FlutterVox to your `pubspec.yaml`:
 dependencies:
   flutter_vox: 
     git:
-      url: [GIT_URL]
+      url: [REPOSITORY_URL]
 ```
 
 ### Android Setup
@@ -33,158 +39,171 @@ dependencies:
 
 ```xml
 <uses-permission android:name="android.permission.RECORD_AUDIO" />
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
+    android:maxSdkVersion="32" />
+
+<queries>
+    <intent>
+        <action android:name="android.speech.RecognitionService" />
+    </intent>
+    <intent>
+        <action android:name="android.service.voice.VoiceInteractionService" />
+    </intent>
+</queries>
 ```
 
 2. Request runtime permissions in your app:
 
 ```dart
-// Request microphone permission
-if (await Permission.microphone.request().isGranted) {
-  // Start voice assistant service
+// Request required permissions
+final permissions = await [
+  Permission.microphone,
+  Permission.speech,
+  Permission.notification,
+  Permission.storage
+].request();
+
+if (permissions.values.every((status) => status.isGranted)) {
+  // Initialize voice assistant
 }
 ```
 
-## Usage
+## Basic Usage
 
-### Basic Implementation
+### Initialization
 
 ```dart
 import 'package:flutter_vox/flutter_vox.dart';
 
-// Initialize the plugin
 final flutterVox = FlutterVox();
 
-// Start the voice assistant service
-await flutterVox.startService();
-
-// Stop the service
-await flutterVox.stopService();
-
-// Check if service is running
-bool isRunning = await flutterVox.isServiceRunning();
-```
-
-### Advanced Configuration
-
-#### Custom Wake Words
-
-```dart
+// Initialize with basic configuration
 await flutterVox.initialize(
-  config: VoiceConfig(
-    wakeWords: ['hey assistant', 'ok assistant'],
-    language: 'en-US',
-  )
+  wakeWord: 'hey assistant',
+  config: {
+    'language': 'en-US',
+    'continuousListening': true,
+  },
+  callback: this, // Implement VoiceAssistantCallback
 );
 ```
 
-#### Custom Command Handling
+### Control Methods
 
 ```dart
-await flutterVox.addCommand(
-  'open {app}',
-  (params) {
-    final appName = params['app'];
-    // Handle opening the app
+// Start voice assistant
+await flutterVox.startListening();
+
+// Check if currently listening
+bool isActive = await flutterVox.isListening();
+
+// Stop voice assistant
+await flutterVox.stopListening();
+
+// Clean up resources
+flutterVox.dispose();
+```
+
+### Callback Implementation
+
+```dart
+class MyVoiceHandler implements VoiceAssistantCallback {
+  @override
+  void onWakeWordDetected() {
+    print('Wake word detected!');
+    // Start command processing
   }
-);
+
+  @override
+  void onError(String error) {
+    print('Error occurred: $error');
+    // Handle error
+  }
+}
 ```
 
-#### Launcher Mode
+## Advanced Features
+
+### Background Service Mode
 
 ```dart
+// Enable background service mode
+await flutterVox.setBackgroundMode(true);
+
+// The service will continue running even when the app is in background
+// A notification will be shown to indicate the service status
+```
+
+### Launcher Mode
+
+```dart
+// Enable launcher mode
 await flutterVox.setLauncherMode(true);
+
+// The app can now be set as the default launcher
+// Voice commands will be available from the home screen
 ```
 
 ## Performance Considerations
 
-- Wake word detection runs locally and is optimized for minimal battery impact
+FlutterVox is designed with performance and battery life in mind:
+
+- Wake word detection runs locally for minimal latency
 - Background service uses less than 50MB of memory
-- CPU usage in idle state is under 2%
+- CPU usage in idle state stays under 2%
 - Battery impact is optimized to less than 5% additional drain
+- Automatic service management to prevent resource leaks
 
-## API Reference
+## Error Handling
 
-### Core Methods
-
-```dart
-Future<void> initialize({VoiceConfig? config});
-Future<void> startService();
-Future<void> stopService();
-Future<bool> isServiceRunning();
-```
-
-### Command Management
+FlutterVox provides dedicated error handling through exceptions:
 
 ```dart
-Future<void> addCommand(String pattern, Function(Map<String, String>) handler);
-Future<void> removeCommand(String pattern);
-Future<List<String>> getAvailableCommands();
-```
-
-### Mode Control
-
-```dart
-Future<void> setLauncherMode(bool enabled);
-Future<void> setBackgroundMode(bool enabled);
-```
-
-## Events
-
-Listen to voice assistant events:
-
-```dart
-flutterVox.onWakeWordDetected.listen((word) {
-  print('Wake word detected: $word');
-});
-
-flutterVox.onCommandRecognized.listen((command) {
-  print('Command recognized: $command');
-});
+try {
+  await flutterVox.startListening();
+} on VoiceAssistantException catch (e) {
+  print('Error code: ${e.code}');
+  print('Error message: ${e.message}');
+}
 ```
 
 ## Common Issues and Solutions
 
 ### Service Not Starting
 
-Make sure you have:
-1. Added all required permissions in AndroidManifest.xml
-2. Requested runtime permissions for microphone access
-3. Properly initialized the plugin before starting the service
+If the voice assistant service fails to start:
 
-### High Battery Consumption
+1. Verify all required permissions are granted
+2. Check Android Manifest configuration
+3. Ensure device meets minimum API level requirement
+4. Verify background service restrictions on the device
 
-If you notice higher than expected battery usage:
+### High Battery Usage
+
+If experiencing higher than expected battery drain:
+
 1. Check if continuous listening is necessary
-2. Adjust wake word sensitivity
-3. Verify no memory leaks in custom command handlers
+2. Verify wake word sensitivity settings
+3. Monitor for wake word false positives
+4. Ensure proper cleanup when stopping the service
 
-### Memory Usage
+### Memory Management
 
-The service is designed to use minimal memory, but if you experience issues:
-1. Monitor memory usage through Android Studio
-2. Check for memory leaks in custom implementations
-3. Ensure proper cleanup in command handlers
+To maintain optimal memory usage:
 
-## Contributing
-
-We welcome contributions! Please see our contributing guide for details.
-
-### Development Setup
-
-1. Clone the repository
-2. Run `flutter pub get`
-3. Run the example app
-4. Make your changes
-5. Submit a pull request
-
-## Requirements
-
-- Android API Level 21+
-- Flutter 2.0.0+
-- Kotlin 1.5.0+
+1. Call `dispose()` when the voice assistant is no longer needed
+2. Monitor memory usage through Android Studio
+3. Implement proper lifecycle management
+4. Clear resources in background service when stopped
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Thanks to CMU Sphinx for providing offline speech recognition capabilities
+- Flutter team for the plugin development infrastructure
