@@ -30,6 +30,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> implements VoiceAssistantCallback {
+  static const wakeWord = 'KIKO';
+
   final FlutterVox _voiceAssistant = FlutterVox();
   final List<CommandLog> _commandLogs = [];
   bool _isInitialized = false;
@@ -74,7 +76,7 @@ class _HomePageState extends State<HomePage> implements VoiceAssistantCallback {
   Future<void> _initializeVoiceAssistant() async {
     try {
       await _voiceAssistant.initialize(
-        wakeWord: 'KIKO',
+        wakeWord: wakeWord,
         config: {
           'language': 'en-US',
           'continuousListening': true,
@@ -283,7 +285,7 @@ class _HomePageState extends State<HomePage> implements VoiceAssistantCallback {
   Widget _buildCommandLog() {
     if (_commandLogs.isEmpty) {
       return const Center(
-        child: Text('No commands yet. Try saying "Hey Assistant"!'),
+        child: Text('No commands yet. Try saying "$wakeWord"!'),
       );
     }
 
