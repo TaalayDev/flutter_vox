@@ -4,17 +4,6 @@ A Flutter plugin that implements voice assistant functionality with background l
 
 > ⚠️ **Development Status**: This plugin is currently in early development and is not ready for production use. Development may be discontinued if better alternatives become available. Consider using established solutions like [alan_voice](https://pub.dev/packages/alan_voice) or [picovoice_flutter](https://pub.dev/packages/picovoice_flutter) for production applications.
 
-## Features
-
-- 🎤 Background audio listening with minimal battery impact
-- 🗣️ Offline wake word detection and customization
-- 📱 Dual-mode operation (launcher or background service)
-- 🎯 Custom voice command support with contextual processing
-- 🔋 Battery-efficient background operation (<5% additional drain)
-- 🔒 Built-in security features and permission handling
-- 📱 Full Android lifecycle management
-- 🔄 Automatic service restoration after device reboot
-
 ## System Requirements
 
 - Android API Level 21+ (Android 5.0 or higher)
