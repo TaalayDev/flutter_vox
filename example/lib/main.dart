@@ -60,6 +60,7 @@ class _HomePageState extends State<HomePage> implements VoiceAssistantCallback {
       Permission.microphone,
       Permission.speech,
       Permission.notification,
+      Permission.storage
     ].request();
 
     final statuses = permissions.values.toList();
@@ -73,7 +74,7 @@ class _HomePageState extends State<HomePage> implements VoiceAssistantCallback {
   Future<void> _initializeVoiceAssistant() async {
     try {
       await _voiceAssistant.initialize(
-        wakeWords: ['hey assistant', 'ok assistant'],
+        wakeWords: ['KIKO'],
         config: {
           'language': 'en-US',
           'continuousListening': true,

@@ -13,6 +13,7 @@ import io.github.taalaydev.fluttervox.flutter_vox.wake.WakeWordDetector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -39,6 +40,7 @@ class VoiceAssistantService : Service() {
         // Initialize wake word detector
         wakeWordDetector = WakeWordDetector(
             context = this,
+            coroutineScope = serviceScope,
             config = WakeWordDetector.WakeWordConfig(
                 wakeWords = setOf("hey assistant", "ok assistant"),
                 continuousListening = true
@@ -53,15 +55,17 @@ class VoiceAssistantService : Service() {
             )
         )
 
-        try {
-            wakeWordDetector.initialize()
-            commandProcessor.initialize()
-            registerCommands()
+        serviceScope.launch {
+            try {
+                wakeWordDetector.initialize()
+                commandProcessor.initialize()
+                registerCommands()
 
-            // Monitor listening states
-            monitorListeningStates()
-        } catch (e: Exception) {
-            Log.d("FlutterVox", "Failed to initialize voice components")
+                // Monitor listening states
+                monitorListeningStates()
+            } catch (e: Exception) {
+                Log.d("FlutterVox", "Failed to initialize voice components")
+            }
         }
     }
 
@@ -117,15 +121,13 @@ class VoiceAssistantService : Service() {
     }
 
     fun startListening() {
-        wakeWordDetector.startListening(
-            onWakeWordDetected = {
+        wakeWordDetector.startListening()
+        serviceScope.launch {
+            wakeWordDetector.wakeWordDetected.collect {
                 // Wake word detected, start listening for commands
                 startCommandDetection()
-            },
-            onError = { error ->
-                Log.e("FlutterVox", "Wake word detection error")
             }
-        )
+        }
     }
 
     fun stopListening() {

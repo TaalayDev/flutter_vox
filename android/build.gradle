@@ -6,6 +6,7 @@ buildscript {
     repositories {
         google()
         mavenCentral()
+
     }
 
     dependencies {
@@ -18,6 +19,11 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+
+//        flatDir {
+//            dirs "libs"
+//        }
+//        maven { url "https://raw.githubusercontent.com/cmusphinx/cmusphinx.github.io/master/repo" }
     }
 }
 
@@ -47,9 +53,23 @@ android {
         minSdk = 21
     }
 
+    buildTypes {
+        release {
+            consumerProguardFiles 'proguard-rules.pro'
+        }
+    }
+
     dependencies {
         testImplementation("org.jetbrains.kotlin:kotlin-test")
         testImplementation("org.mockito:mockito-core:5.0.0")
+
+//        implementation(group: 'edu.cmu.pocketsphinx', name: 'pocketsphinx-android', version: '5prealpha-release', ext: 'aar') {
+//            transitive = true
+//        }
+        implementation fileTree(include: ['*.jar'], dir: 'libs')
+
+        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.5.2")
+        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.5.2")
     }
 
     testOptions {
@@ -64,3 +84,11 @@ android {
         }
     }
 }
+
+dependencies {
+
+}
+
+ant.importBuild 'assets.xml'
+preBuild.dependsOn(list, checksum)
+clean.dependsOn(clean_assets)

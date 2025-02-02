@@ -1,19 +1,29 @@
 package io.github.taalaydev.fluttervox.flutter_vox.wake
 
+import android.Manifest
 import android.content.Context
-import android.content.Intent
-import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import android.util.Log
+import edu.cmu.pocketsphinx.Assets
+import edu.cmu.pocketsphinx.Hypothesis
+import edu.cmu.pocketsphinx.RecognitionListener
+import edu.cmu.pocketsphinx.SpeechRecognizer
+import edu.cmu.pocketsphinx.SpeechRecognizerSetup
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.IOException
 
 class WakeWordDetector(
     private val context: Context,
+    private val coroutineScope: CoroutineScope,
     private val config: WakeWordConfig = WakeWordConfig()
-) {
+): RecognitionListener {
     data class WakeWordConfig(
         val wakeWords: Set<String> = setOf("hey assistant", "ok assistant"),
         val language: String = "en-US",
@@ -21,158 +31,120 @@ class WakeWordDetector(
         val continuousListening: Boolean = true
     )
 
-    private var speechRecognizer: SpeechRecognizer? = null
+    private var recognizer: SpeechRecognizer? = null
     private val _isListening = MutableStateFlow(false)
     val isListening: StateFlow<Boolean> = _isListening
 
-    fun initialize() {
-        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
-            throw IllegalStateException("Speech recognition is not available on this device")
-        }
+    private val _wakeWordDetected = MutableSharedFlow<Unit>()
+    val wakeWordDetected: SharedFlow<Unit> = _wakeWordDetected
 
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
-            setRecognitionListener(createRecognitionListener())
-        }
+    private var isInitialized = false
+
+    suspend fun initialize() {
+        setup()
     }
 
-    fun startListening(
-        onWakeWordDetected: () -> Unit,
-        onError: (Exception) -> Unit
-    ) {
-        if (_isListening.value) {
-            Log.d("FlutterVox", "Already listening")
-            return
-        }
-
-        val recognizerIntent = createRecognizerIntent()
-        try {
-            speechRecognizer?.startListening(recognizerIntent)
-            _isListening.value = true
-        } catch (e: Exception) {
-            onError(e)
-        }
+    fun startListening() {
+        recognizer?.startListening(WAKE_WORD_SEARCH, 10000)
     }
 
     fun stopListening() {
-        speechRecognizer?.stopListening()
-        _isListening.value = false
+        recognizer?.stop()
     }
+
+    override fun onBeginningOfSpeech() {}
+
+    override fun onEndOfSpeech() {}
+
+    override fun onPartialResult(hypothesis: Hypothesis?) {
+        if (hypothesis == null) {
+            return
+        }
+
+        val text = hypothesis.hypstr
+        if (text.contains(config.wakeWords.first())) {
+            coroutineScope.launch {
+                _wakeWordDetected.emit(Unit)
+            }
+        }
+    }
+
+    override fun onResult(hypothesis: Hypothesis?) {
+        if (hypothesis == null) {
+            return
+        }
+
+        val text = hypothesis.hypstr
+        if (text.contains(config.wakeWords.first())) {
+            coroutineScope.launch {
+                // _wakeWordDetected.emit(Unit)
+            }
+        }
+    }
+
+    override fun onError(error: Exception?) {
+        error?.printStackTrace()
+    }
+
+    override fun onTimeout() {}
 
     fun destroy() {
-        speechRecognizer?.apply {
-            cancel()
-            destroy()
-        }
-        speechRecognizer = null
+        recognizer?.shutdown()
+        recognizer = null
+        isInitialized = false
         _isListening.value = false
     }
 
-    private fun createRecognizerIntent(): Intent {
-        return Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, config.language)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, config.partialResults)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-            // Disable beep sound
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 500)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 500)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 500)
+    private suspend fun setup() = withContext(Dispatchers.IO) {
+        if (isInitialized) {
+            Log.w(TAG, "setup() called - already initialized (this is ok if wake word changed)")
+        } else {
+            Log.d(TAG, "setup() called")
+            isInitialized = true
         }
-    }
 
-    private fun createRecognitionListener(): RecognitionListener {
-        return object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) {
-                Log.d("FlutterVox","Ready for speech")
+        // Load the wake word from shared prefs
+        val wakeWordString = config.wakeWords.first()
+        val keywordThreshold = ("1.e-" + 2 * DEFAULT_SENSITIVITY).toFloat()
+        Log.d(
+            TAG,
+            "setup: wake word is: $wakeWordString, sensitivity is: $keywordThreshold [$DEFAULT_SENSITIVITY]"
+        )
+        try {
+            if (recognizer != null) {
+                // Investigate if seen
+                Log.e(
+                    TAG,
+                    "setup: warning already running: " + recognizer!!.searchName,
+                    RuntimeException()
+                )
+                destroy()
             }
 
-            override fun onBeginningOfSpeech() {
-                Log.d("FlutterVox","Beginning of speech")
-            }
-
-            override fun onRmsChanged(rmsdB: Float) {
-                // Can be used to show voice amplitude
-            }
-
-            override fun onBufferReceived(buffer: ByteArray?) {
-                // Raw audio buffer - not used in this implementation
-            }
-
-            override fun onEndOfSpeech() {
-                Log.d("FlutterVox","End of speech")
-                if (config.continuousListening) {
-                    // Restart listening
-                    speechRecognizer?.startListening(createRecognizerIntent())
-                } else {
-                    _isListening.value = false
-                }
-            }
-
-            override fun onPartialResults(partialResults: Bundle?) {
-                if (!config.partialResults) return
-
-                processResults(partialResults)
-            }
-
-            override fun onResults(results: Bundle?) {
-                processResults(results)
-
-                if (config.continuousListening) {
-                    // Restart listening
-                    speechRecognizer?.startListening(createRecognizerIntent())
-                } else {
-                    _isListening.value = false
-                }
-            }
-
-            override fun onError(error: Int) {
-                val errorMessage = when (error) {
-                    SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
-                    SpeechRecognizer.ERROR_CLIENT -> "Client side error"
-                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Insufficient permissions"
-                    SpeechRecognizer.ERROR_NETWORK -> "Network error"
-                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
-                    SpeechRecognizer.ERROR_NO_MATCH -> "No match found"
-                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "RecognitionService busy"
-                    SpeechRecognizer.ERROR_SERVER -> "Server error"
-                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech input"
-                    else -> "Unknown error"
-                }
-
-                Log.e("FlutterVox","Speech recognition error: $errorMessage")
-
-                if (config.continuousListening && error == SpeechRecognizer.ERROR_NO_MATCH) {
-                    // Restart listening on no match
-                    speechRecognizer?.startListening(createRecognizerIntent())
-                } else {
-                    _isListening.value = false
-                }
-            }
-
-            override fun onEvent(eventType: Int, params: Bundle?) {
-                // Reserved for future use
-            }
-        }
-    }
-
-    private fun processResults(results: Bundle?) {
-        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-        matches?.forEach { result ->
-            val normalizedResult = result.toLowerCase()
-            if (config.wakeWords.any { wakeWord ->
-                    normalizedResult.contains(wakeWord)
-                }) {
-                Log.d("FlutterVox","Wake word detected: $result")
-                onWakeWordDetected?.invoke()
-                if (!config.continuousListening) {
-                    stopListening()
-                }
-            }
+            val assets = Assets(context)
+            val assetsDir = assets.syncAssets()
+            val speechRecognizer = SpeechRecognizerSetup.defaultSetup()
+                .setAcousticModel(File(assetsDir, "en-us-ptm"))
+                .setDictionary(File(assetsDir, "lm/words.dic"))
+                .setBoolean("-remove_noise", false)
+                .setFloat("-vad_threshold", 2.7)
+                .setKeywordThreshold(KWS_THRESHOLD) // Uncomment for a lot of raw logging (takes up a lot of space on the device)
+                // .setRawLogDir(assetsDir)
+                .recognizer
+            speechRecognizer.addKeyphraseSearch(WAKE_WORD_SEARCH, wakeWordString)
+            speechRecognizer.addListener(this@WakeWordDetector)
+            speechRecognizer.startListening(WAKE_WORD_SEARCH)
+            recognizer = speechRecognizer
+            Log.d(TAG, "setup: listening...")
+        } catch (e: IOException) {
+            Log.e(TAG, "Caught: $e")
         }
     }
 
     companion object {
-        private var onWakeWordDetected: (() -> Unit)? = null
+        private val WAKE_WORD_SEARCH = "WAKE_WORD_SEARCH"
+        private val KWS_THRESHOLD = 1e-15f
+        private val DEFAULT_SENSITIVITY = 3
+        private const val TAG = "WakeWordDetector"
     }
 }

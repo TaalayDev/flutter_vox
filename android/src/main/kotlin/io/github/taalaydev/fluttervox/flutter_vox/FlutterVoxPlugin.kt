@@ -2,6 +2,7 @@ package io.github.taalaydev.fluttervox.flutter_vox
 
 import android.content.Context
 import androidx.annotation.NonNull
+import androidx.lifecycle.lifecycleScope
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -14,8 +15,11 @@ import io.github.taalaydev.fluttervox.flutter_vox.service.ServiceController
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class FlutterVoxPlugin: FlutterPlugin, MethodCallHandler {
   private lateinit var channel: MethodChannel
@@ -60,15 +64,17 @@ class FlutterVoxPlugin: FlutterPlugin, MethodCallHandler {
         return
       }
 
-      initializeComponents(wakePath, wakeWords, config)
-      isInitialized = true
-      result.success(null)
+      scope.launch {
+        initializeComponents(wakePath, wakeWords, config)
+        isInitialized = true
+        result.success(null)
+      }
     } catch (e: Exception) {
       result.error("initialization_failed", "Failed to initialize plugin: ${e.message}", null)
     }
   }
 
-  private fun initializeComponents(
+  private suspend fun initializeComponents(
     wakePath: String?,
     wakeWords: List<String>?,
     config: Map<String, Any>?
@@ -77,6 +83,7 @@ class FlutterVoxPlugin: FlutterPlugin, MethodCallHandler {
 
     wakeDetector = WakeWordDetector(
       context = context,
+      coroutineScope = scope,
       config = WakeWordDetector.WakeWordConfig(
         wakeWords = wakeWords?.toSet() ?: setOf("hey assistant", "ok assistant"),
         continuousListening = config?.get("continuousListening") as? Boolean ?: true
@@ -106,6 +113,7 @@ class FlutterVoxPlugin: FlutterPlugin, MethodCallHandler {
     }
   }
 
+  @OptIn(InternalCoroutinesApi::class)
   private fun handleStartListening(result: Result) {
     if (!isInitialized) {
       result.error("not_initialized", "Plugin is not initialized", null)
@@ -113,15 +121,13 @@ class FlutterVoxPlugin: FlutterPlugin, MethodCallHandler {
     }
 
     try {
-      wakeDetector.startListening(
-        onWakeWordDetected = {
-          channel.invokeMethod("onWakeWordDetected", null)
+      wakeDetector.startListening()
+      scope.launch(Dispatchers.Main) {
+        wakeDetector.wakeWordDetected.collect { _ ->
           startCommandDetection()
-        },
-        onError = { error ->
-          channel.invokeMethod("onError", "Wake word detection error: ${error.message}")
         }
-      )
+      }
+
       result.success(null)
     } catch (e: Exception) {
       result.error("start_listening_failed", "Failed to start listening: ${e.message}", null)
