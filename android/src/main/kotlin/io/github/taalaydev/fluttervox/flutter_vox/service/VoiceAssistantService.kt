@@ -42,7 +42,7 @@ class VoiceAssistantService : Service() {
             context = this,
             coroutineScope = serviceScope,
             config = WakeWordDetector.WakeWordConfig(
-                wakeWords = setOf("hey assistant", "ok assistant"),
+                wakeWord = "hey assistant",
                 continuousListening = true
             )
         )
