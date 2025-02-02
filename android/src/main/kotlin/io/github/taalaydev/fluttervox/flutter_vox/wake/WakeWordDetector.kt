@@ -25,7 +25,7 @@ class WakeWordDetector(
     private val config: WakeWordConfig = WakeWordConfig()
 ): RecognitionListener {
     data class WakeWordConfig(
-        val wakeWords: Set<String> = setOf("hey assistant", "ok assistant"),
+        val wakeWord: String = "assistant",
         val language: String = "en-US",
         val partialResults: Boolean = true,
         val continuousListening: Boolean = true
@@ -66,7 +66,7 @@ class WakeWordDetector(
         }
 
         val text = hypothesis.hypstr
-        if (text.contains(config.wakeWords.first())) {
+        if (text.contains(config.wakeWord)) {
             coroutineScope.launch {
                 _wakeWordDetected.emit(Unit)
             }
@@ -79,7 +79,7 @@ class WakeWordDetector(
         }
 
         val text = hypothesis.hypstr
-        if (text.contains(config.wakeWords.first())) {
+        if (text.contains(config.wakeWord)) {
             coroutineScope.launch {
                 // _wakeWordDetected.emit(Unit)
             }
@@ -108,7 +108,7 @@ class WakeWordDetector(
         }
 
         // Load the wake word from shared prefs
-        val wakeWordString = config.wakeWords.first()
+        val wakeWordString = config.wakeWord
         val keywordThreshold = ("1.e-" + 2 * DEFAULT_SENSITIVITY).toFloat()
         Log.d(
             TAG,

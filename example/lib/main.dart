@@ -74,7 +74,7 @@ class _HomePageState extends State<HomePage> implements VoiceAssistantCallback {
   Future<void> _initializeVoiceAssistant() async {
     try {
       await _voiceAssistant.initialize(
-        wakeWords: ['KIKO'],
+        wakeWord: 'KIKO',
         config: {
           'language': 'en-US',
           'continuousListening': true,

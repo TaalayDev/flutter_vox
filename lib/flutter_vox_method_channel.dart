@@ -11,13 +11,13 @@ class MethodChannelFlutterVox extends FlutterVoxPlatform {
   @override
   Future<void> initialize({
     String? wakePath,
-    List<String>? wakeWords,
+    String? wakeWord,
     Map<String, dynamic>? config,
   }) async {
     try {
       await _channel.invokeMethod('initialize', {
         'wakePath': wakePath,
-        'wakeWords': wakeWords,
+        'wakeWord': wakeWord,
         'config': config,
       });
     } on PlatformException catch (e) {

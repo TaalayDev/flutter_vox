@@ -15,7 +15,7 @@ class FlutterVox {
 
   Future<void> initialize({
     String? wakePath,
-    List<String>? wakeWords,
+    String? wakeWord,
     Map<String, dynamic>? config,
     VoiceAssistantCallback? callback,
   }) async {
@@ -23,7 +23,7 @@ class FlutterVox {
     _setupMethodCallHandler();
     await FlutterVoxPlatform.instance.initialize(
       wakePath: wakePath,
-      wakeWords: wakeWords,
+      wakeWord: wakeWord,
       config: config,
     );
   }

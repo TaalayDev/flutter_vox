@@ -56,7 +56,7 @@ class FlutterVoxPlugin: FlutterPlugin, MethodCallHandler {
   private fun handleInitialize(call: MethodCall, result: Result) {
     try {
       val wakePath = call.argument<String>("wakePath")
-      val wakeWords = call.argument<List<String>>("wakeWords")
+      val wakeWord = call.argument<String>("wakeWord")
       val config = call.argument<Map<String, Any>>("config")
 
       if (isInitialized) {
@@ -65,7 +65,7 @@ class FlutterVoxPlugin: FlutterPlugin, MethodCallHandler {
       }
 
       scope.launch {
-        initializeComponents(wakePath, wakeWords, config)
+        initializeComponents(wakePath, wakeWord, config)
         isInitialized = true
         result.success(null)
       }
@@ -76,7 +76,7 @@ class FlutterVoxPlugin: FlutterPlugin, MethodCallHandler {
 
   private suspend fun initializeComponents(
     wakePath: String?,
-    wakeWords: List<String>?,
+    wakeWord: String?,
     config: Map<String, Any>?
   ) {
     audioManager = AudioManager(context)
@@ -85,7 +85,7 @@ class FlutterVoxPlugin: FlutterPlugin, MethodCallHandler {
       context = context,
       coroutineScope = scope,
       config = WakeWordDetector.WakeWordConfig(
-        wakeWords = wakeWords?.toSet() ?: setOf("hey assistant", "ok assistant"),
+        wakeWord = wakeWord ?: "hey assistant",
         continuousListening = config?.get("continuousListening") as? Boolean ?: true
       )
     )

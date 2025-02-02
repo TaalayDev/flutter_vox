@@ -18,7 +18,7 @@ abstract class FlutterVoxPlatform extends PlatformInterface {
 
   Future<void> initialize({
     String? wakePath,
-    List<String>? wakeWords,
+    String? wakeWord,
     Map<String, dynamic>? config,
   }) {
     throw UnimplementedError('initialize() has not been implemented.');
