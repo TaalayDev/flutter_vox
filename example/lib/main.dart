@@ -30,7 +30,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> implements VoiceAssistantCallback {
-  static const wakeWord = 'Flutter';
+  static const wakeWord = 'flutter';
 
   final FlutterVox _voiceAssistant = FlutterVox();
   final List<CommandLog> _commandLogs = [];
