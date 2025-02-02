@@ -52,9 +52,13 @@ class WakeWordDetector(
         recognizer?.stop()
     }
 
-    override fun onBeginningOfSpeech() {}
+    override fun onBeginningOfSpeech() {
+        Log.d(TAG, "onBeginningOfSpeech")
+    }
 
-    override fun onEndOfSpeech() {}
+    override fun onEndOfSpeech() {
+        Log.d(TAG, "onEndOfSpeech")
+    }
 
     override fun onPartialResult(hypothesis: Hypothesis?) {
         if (hypothesis == null) {

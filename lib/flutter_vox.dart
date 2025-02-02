@@ -34,6 +34,7 @@ class FlutterVox {
 
       switch (call.method) {
         case 'onWakeWordDetected':
+          print('onWakeWordDetected');
           _callback?.onWakeWordDetected();
           break;
         case 'onCommandRecognized':

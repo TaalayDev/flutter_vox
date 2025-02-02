@@ -85,10 +85,6 @@ android {
     }
 }
 
-dependencies {
-
-}
-
 ant.importBuild 'assets.xml'
 preBuild.dependsOn(list, checksum)
 clean.dependsOn(clean_assets)
