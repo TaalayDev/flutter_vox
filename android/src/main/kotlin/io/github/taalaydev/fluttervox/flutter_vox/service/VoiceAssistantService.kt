@@ -8,7 +8,13 @@ import android.media.AudioManager
 import android.os.Binder
 import android.os.IBinder
 import android.util.Log
-import io.github.taalaydev.fluttervox.flutter_vox.command.CommandProcessor
+import androidx.annotation.NonNull
+import io.flutter.FlutterInjector
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.dart.DartExecutor
+import io.flutter.plugin.common.MethodCall
+import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.MethodChannel.Result
 import io.github.taalaydev.fluttervox.flutter_vox.wake.WakeWordDetector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,9 +26,12 @@ import kotlinx.coroutines.launch
 class VoiceAssistantService : Service() {
     private val binder = LocalBinder()
     private lateinit var wakeWordDetector: WakeWordDetector
-    private lateinit var commandProcessor: CommandProcessor
     private lateinit var serviceController: ServiceController
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
+
+    private val CHANNEL_NAME = "flutter_vox.service"
+    private var flutterEngine: FlutterEngine? = null
+    private var methodChannel: MethodChannel? = null
 
     inner class LocalBinder : Binder() {
         fun getService(): VoiceAssistantService = this@VoiceAssistantService
@@ -32,8 +41,38 @@ class VoiceAssistantService : Service() {
         super.onCreate()
         Log.d("FlutterVox","VoiceAssistantService created")
 
+        setupFlutterEngine()
         initializeComponents()
         startForeground()
+    }
+
+    private fun setupFlutterEngine() {
+        flutterEngine = FlutterEngine(this)
+
+        // Initialize Flutter engine with your Dart entrypoint
+        flutterEngine?.let { engine ->
+            val dartEntrypoint = DartExecutor.DartEntrypoint(
+                FlutterInjector.instance().flutterLoader().findAppBundlePath(),
+                "backgroundMain" // This is the Dart entrypoint function name
+            )
+            engine.dartExecutor.executeDartEntrypoint(dartEntrypoint)
+
+            // Setup method channel for communication
+            methodChannel = MethodChannel(engine.dartExecutor.binaryMessenger, CHANNEL_NAME)
+            methodChannel?.setMethodCallHandler { call, result ->
+                onMethodCall(call, result)
+            }
+        }
+    }
+
+    private fun onMethodCall(call: MethodCall, result: Result) {
+        when (call.method) {
+            "initialize" -> handleInitialize(call, result)
+            "startListening" -> startListening(result)
+            "stopListening" -> stopListening(result)
+            "isListening" -> handleIsListening(result)
+            else -> result.notImplemented()
+        }
     }
 
     private fun initializeComponents() {
@@ -46,25 +85,18 @@ class VoiceAssistantService : Service() {
                 continuousListening = true
             )
         )
+    }
 
-        // Initialize command processor
-        commandProcessor = CommandProcessor(
-            context = this,
-            config = CommandProcessor.CommandConfig(
-                timeout = 5000L
-            )
-        )
-
+    private fun handleInitialize(call: MethodCall, result: Result) {
         serviceScope.launch {
             try {
                 wakeWordDetector.initialize()
-                commandProcessor.initialize()
-                registerCommands()
-
                 // Monitor listening states
                 monitorListeningStates()
+                result.success(null)
             } catch (e: Exception) {
                 Log.d("FlutterVox", "Failed to initialize voice components")
+                result.error("initialization_failed", "Failed to initialize voice components", null)
             }
         }
     }
@@ -81,13 +113,6 @@ class VoiceAssistantService : Service() {
                 updateNotification(isListening)
             }
         }
-
-        serviceScope.launch {
-            // Monitor command processor state
-            commandProcessor.isListening.collectLatest { isListening ->
-                updateNotification(isListening)
-            }
-        }
     }
 
     private fun updateNotification(isListening: Boolean) {
@@ -96,61 +121,25 @@ class VoiceAssistantService : Service() {
         notificationManager.notify(ServiceController.NOTIFICATION_ID, notification.build())
     }
 
-    private fun registerCommands() {
-        // System commands
-        commandProcessor.addCommand("stop listening") {
-            stopListening()
-        }
-
-        // Add more default commands here
-        commandProcessor.addCommand(
-            pattern = "open {app}",
-            parameterNames = listOf("app")
-        ) { params ->
-            val appName = params["app"] ?: return@addCommand
-            launchApp(appName)
-        }
-
-        commandProcessor.addCommand(
-            pattern = "set volume to {level}",
-            parameterNames = listOf("level")
-        ) { params ->
-            val level = params["level"]?.toIntOrNull() ?: return@addCommand
-            setVolume(level)
-        }
-    }
-
-    fun startListening() {
+    fun startListening(result: Result? = null) {
         wakeWordDetector.startListening()
         serviceScope.launch {
             wakeWordDetector.wakeWordDetected.collect {
-                // Wake word detected, start listening for commands
-                startCommandDetection()
+                methodChannel?.invokeMethod("onWakeWordDetected", null)
+
+                result?.success(null)
             }
         }
     }
 
-    fun stopListening() {
+    fun stopListening(result: Result? = null) {
         wakeWordDetector.stopListening()
-        commandProcessor.stopListening()
+
+        result?.success(null)
     }
 
-    private fun startCommandDetection() {
-        // Play sound or vibrate to indicate active listening
-        playListeningIndicator()
-
-        commandProcessor.startListening(
-            onCommandRecognized = { command ->
-                Log.d("FlutterVox","Command recognized: $command")
-            },
-            onError = { error ->
-                Log.e("FlutterVox", "Command recognition error")
-            }
-        )
-    }
-
-    private fun playListeningIndicator() {
-        // Implement sound/vibration feedback
+    private fun handleIsListening(result: Result) {
+        result.success(wakeWordDetector.isListening.value)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -169,33 +158,6 @@ class VoiceAssistantService : Service() {
         super.onDestroy()
         stopListening()
         wakeWordDetector.destroy()
-        commandProcessor.destroy()
     }
 
-    private fun launchApp(appName: String) {
-        val packageManager = applicationContext.packageManager
-        try {
-            val intent = packageManager.getLaunchIntentForPackage(appName)
-                ?: packageManager.getLeanbackLaunchIntentForPackage(appName)
-            if (intent != null) {
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(intent)
-            } else {
-                Log.e("FlutterVox","No launch intent for app: $appName")
-            }
-        } catch (e: Exception) {
-            Log.e("FlutterVox", "Error launching app: $appName")
-        }
-    }
-
-    private fun setVolume(level: Int) {
-        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        val scaledLevel = (level.coerceIn(0, 100) * maxVolume / 100)
-        audioManager.setStreamVolume(
-            AudioManager.STREAM_MUSIC,
-            scaledLevel,
-            AudioManager.FLAG_SHOW_UI
-        )
-    }
 }

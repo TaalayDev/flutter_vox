@@ -8,8 +8,6 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
-import io.github.taalaydev.fluttervox.flutter_vox.audio.AudioManager
-import io.github.taalaydev.fluttervox.flutter_vox.command.CommandProcessor
 import io.github.taalaydev.fluttervox.flutter_vox.wake.WakeWordDetector
 import io.github.taalaydev.fluttervox.flutter_vox.service.ServiceController
 import android.util.Log
@@ -24,9 +22,7 @@ import kotlinx.coroutines.withContext
 class FlutterVoxPlugin: FlutterPlugin, MethodCallHandler {
   private lateinit var channel: MethodChannel
   private lateinit var context: Context
-  private lateinit var audioManager: AudioManager
   private lateinit var wakeDetector: WakeWordDetector
-  private lateinit var commandProcessor: CommandProcessor
   private lateinit var serviceController: ServiceController
 
   private val scope = CoroutineScope(Dispatchers.Main + Job())
@@ -44,9 +40,6 @@ class FlutterVoxPlugin: FlutterPlugin, MethodCallHandler {
       "startListening" -> handleStartListening(result)
       "stopListening" -> handleStopListening(result)
       "isListening" -> handleIsListening(result)
-      "addCommand" -> handleAddCommand(call, result)
-      "removeCommand" -> handleRemoveCommand(call, result)
-      "getAvailableCommands" -> handleGetAvailableCommands(result)
       "setLauncherMode" -> handleSetLauncherMode(call, result)
       "setBackgroundMode" -> handleSetBackgroundMode(call, result)
       else -> result.notImplemented()
@@ -79,7 +72,6 @@ class FlutterVoxPlugin: FlutterPlugin, MethodCallHandler {
     wakeWord: String?,
     config: Map<String, Any>?
   ) {
-    audioManager = AudioManager(context)
 
     wakeDetector = WakeWordDetector(
       context = context,
@@ -89,29 +81,11 @@ class FlutterVoxPlugin: FlutterPlugin, MethodCallHandler {
         continuousListening = config?.get("continuousListening") as? Boolean ?: true
       )
     )
-
-    commandProcessor = CommandProcessor(
-      context = context,
-      config = CommandProcessor.CommandConfig(
-        language = config?.get("language") as? String ?: "en-US",
-        timeout = config?.get("timeout") as? Long ?: 5000L
-      )
-    )
-
     serviceController = ServiceController(context, channel)
 
     wakeDetector.initialize()
-    commandProcessor.initialize()
-    setupDefaultCommands()
   }
 
-  private fun setupDefaultCommands() {
-    commandProcessor.addCommand("stop listening") {
-      scope.launch(Dispatchers.Main) {
-        handleStopListening(null)
-      }
-    }
-  }
 
   @OptIn(InternalCoroutinesApi::class)
   private fun handleStartListening(result: Result) {
@@ -124,7 +98,7 @@ class FlutterVoxPlugin: FlutterPlugin, MethodCallHandler {
       wakeDetector.startListening()
       scope.launch(Dispatchers.Main) {
         wakeDetector.wakeWordDetected.collect { _ ->
-          startCommandDetection()
+          channel.invokeMethod("onWakeWordDetected", null)
         }
       }
 
@@ -132,17 +106,6 @@ class FlutterVoxPlugin: FlutterPlugin, MethodCallHandler {
     } catch (e: Exception) {
       result.error("start_listening_failed", "Failed to start listening: ${e.message}", null)
     }
-  }
-
-  private fun startCommandDetection() {
-    commandProcessor.startListening(
-      onCommandRecognized = { command ->
-        channel.invokeMethod("onCommandRecognized", command)
-      },
-      onError = { error ->
-        channel.invokeMethod("onError", "Command recognition error: ${error.message}")
-      }
-    )
   }
 
   private fun handleStopListening(result: Result?) {
@@ -153,7 +116,6 @@ class FlutterVoxPlugin: FlutterPlugin, MethodCallHandler {
 
     try {
       wakeDetector.stopListening()
-      commandProcessor.stopListening()
       result?.success(null)
     } catch (e: Exception) {
       result?.error("stop_listening_failed", "Failed to stop listening: ${e.message}", null)
@@ -167,57 +129,10 @@ class FlutterVoxPlugin: FlutterPlugin, MethodCallHandler {
     }
 
     try {
-      val isListening = wakeDetector.isListening.value || commandProcessor.isListening.value
+      val isListening = wakeDetector.isListening.value
       result.success(isListening)
     } catch (e: Exception) {
       result.error("status_check_failed", "Failed to check listening status: ${e.message}", null)
-    }
-  }
-
-  private fun handleAddCommand(call: MethodCall, result: Result) {
-    if (!isInitialized) {
-      result.error("not_initialized", "Plugin is not initialized", null)
-      return
-    }
-
-    try {
-      val command = call.argument<String>("command")
-      val parameters = call.argument<List<String>>("parameters") ?: emptyList()
-
-      if (command == null) {
-        result.error("invalid_argument", "Command string is required", null)
-        return
-      }
-
-      commandProcessor.addCommand(command, parameters) { params ->
-        channel.invokeMethod("onCommandExecuted", mapOf(
-          "command" to command,
-          "parameters" to params
-        ))
-      }
-      result.success(null)
-    } catch (e: Exception) {
-      result.error("add_command_failed", "Failed to add command: ${e.message}", null)
-    }
-  }
-
-  private fun handleRemoveCommand(call: MethodCall, result: Result) {
-    if (!isInitialized) {
-      result.error("not_initialized", "Plugin is not initialized", null)
-      return
-    }
-
-    try {
-      val command = call.argument<String>("command")
-      if (command == null) {
-        result.error("invalid_argument", "Command string is required", null)
-        return
-      }
-
-      commandProcessor.removeCommand(command)
-      result.success(null)
-    } catch (e: Exception) {
-      result.error("remove_command_failed", "Failed to remove command: ${e.message}", null)
     }
   }
 
@@ -278,8 +193,6 @@ class FlutterVoxPlugin: FlutterPlugin, MethodCallHandler {
     if (isInitialized) {
       try {
         wakeDetector.destroy()
-        commandProcessor.destroy()
-        audioManager.cleanup()
         serviceController.stopService()
         isInitialized = false
       } catch (e: Exception) {

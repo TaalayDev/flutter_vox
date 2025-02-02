@@ -16,6 +16,7 @@ class FlutterVox {
   Future<void> initialize({
     String? wakePath,
     String? wakeWord,
+    bool? enableVoiceAssistant,
     Map<String, dynamic>? config,
     VoiceAssistantCallback? callback,
   }) async {
@@ -24,6 +25,7 @@ class FlutterVox {
     await FlutterVoxPlatform.instance.initialize(
       wakePath: wakePath,
       wakeWord: wakeWord,
+      enableVoiceAssistant: enableVoiceAssistant,
       config: config,
     );
   }
@@ -34,18 +36,7 @@ class FlutterVox {
 
       switch (call.method) {
         case 'onWakeWordDetected':
-          print('onWakeWordDetected');
           _callback?.onWakeWordDetected();
-          break;
-        case 'onCommandRecognized':
-          _callback?.onCommandRecognized(call.arguments as String);
-          break;
-        case 'onCommandExecuted':
-          final args = call.arguments as Map<dynamic, dynamic>;
-          _callback?.onCommandExecuted(
-            args['command'] as String,
-            Map<String, String>.from(args['parameters'] as Map),
-          );
           break;
         case 'onError':
           _callback?.onError(call.arguments as String);
@@ -57,16 +48,6 @@ class FlutterVox {
   Future<void> startListening() => FlutterVoxPlatform.instance.startListening();
   Future<void> stopListening() => FlutterVoxPlatform.instance.stopListening();
   Future<bool> isListening() => FlutterVoxPlatform.instance.isListening();
-
-  Future<void> addCommand(String command,
-          {List<String> parameters = const []}) =>
-      FlutterVoxPlatform.instance.addCommand(command, parameters);
-
-  Future<void> removeCommand(String command) =>
-      FlutterVoxPlatform.instance.removeCommand(command);
-
-  Future<List<String>> getAvailableCommands() =>
-      FlutterVoxPlatform.instance.getAvailableCommands();
 
   Future<void> setLauncherMode(bool enabled) =>
       FlutterVoxPlatform.instance.setLauncherMode(enabled);

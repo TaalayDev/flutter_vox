@@ -19,6 +19,7 @@ abstract class FlutterVoxPlatform extends PlatformInterface {
   Future<void> initialize({
     String? wakePath,
     String? wakeWord,
+    bool? enableVoiceAssistant = true,
     Map<String, dynamic>? config,
   }) {
     throw UnimplementedError('initialize() has not been implemented.');
@@ -34,19 +35,6 @@ abstract class FlutterVoxPlatform extends PlatformInterface {
 
   Future<bool> isListening() {
     throw UnimplementedError('isListening() has not been implemented.');
-  }
-
-  Future<void> addCommand(String command, List<String> parameters) {
-    throw UnimplementedError('addCommand() has not been implemented.');
-  }
-
-  Future<void> removeCommand(String command) {
-    throw UnimplementedError('removeCommand() has not been implemented.');
-  }
-
-  Future<List<String>> getAvailableCommands() {
-    throw UnimplementedError(
-        'getAvailableCommands() has not been implemented.');
   }
 
   Future<void> setLauncherMode(bool enabled) {

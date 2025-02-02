@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_vox/flutter_vox.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 void main() {
   runApp(const FlutterVoxExampleApp());
@@ -30,7 +31,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> implements VoiceAssistantCallback {
-  static const wakeWord = 'flutter';
+  static const wakeWord = 'KIKO';
 
   final FlutterVox _voiceAssistant = FlutterVox();
   final List<CommandLog> _commandLogs = [];
@@ -40,6 +41,10 @@ class _HomePageState extends State<HomePage> implements VoiceAssistantCallback {
   String _currentStatus = 'Initializing...';
   List<PermissionStatus> _permissionStatus = [];
   bool _isPermissionRequestInProgress = false;
+  bool _isListeningForCommand = false;
+
+  final SpeechToText _speech = SpeechToText();
+  bool _speechEnabled = false;
 
   @override
   void initState() {
@@ -50,6 +55,14 @@ class _HomePageState extends State<HomePage> implements VoiceAssistantCallback {
   Future<void> _initialize() async {
     await _requestPermissions();
     await _initializeVoiceAssistant();
+    await _initializeSpeechToText();
+  }
+
+  Future<void> _initializeSpeechToText() async {
+    _speechEnabled = await _speech.initialize(
+      onError: (error) => _handleError('Speech recognition error: $error'),
+      onStatus: (status) => print('Speech recognition status: $status'),
+    );
   }
 
   Future<void> _requestPermissions() async {
@@ -85,24 +98,6 @@ class _HomePageState extends State<HomePage> implements VoiceAssistantCallback {
         callback: this,
       );
 
-      // Register example commands
-      await _voiceAssistant.addCommand(
-        'open {app}',
-        parameters: ['app'],
-      );
-      await _voiceAssistant.addCommand(
-        'set volume to {level}',
-        parameters: ['level'],
-      );
-      await _voiceAssistant.addCommand(
-        'show {screen}',
-        parameters: ['screen'],
-      );
-      await _voiceAssistant.addCommand(
-        'turn {device} {state}',
-        parameters: ['device', 'state'],
-      );
-
       setState(() {
         _isInitialized = true;
         _currentStatus = 'Ready';
@@ -114,18 +109,106 @@ class _HomePageState extends State<HomePage> implements VoiceAssistantCallback {
     }
   }
 
+  Future<void> _startListeningForCommand() async {
+    if (!_speechEnabled) return;
+
+    await _voiceAssistant.stopListening(); // Stop wake word detection
+
+    setState(() {
+      _isListeningForCommand = true;
+      _currentStatus = 'Listening for command...';
+    });
+
+    await _speech.listen(
+      onResult: (result) {
+        if (result.finalResult) {
+          _handleCommand(result.recognizedWords);
+        }
+      },
+      pauseFor: const Duration(seconds: 3),
+    );
+  }
+
+  void _handleCommand(String command) async {
+    setState(() {
+      _commandLogs.insert(
+        0,
+        CommandLog(
+          type: LogType.command,
+          message: 'Command received: $command',
+          timestamp: DateTime.now(),
+        ),
+      );
+    });
+
+    // Interpret and execute the command here
+    await _interpretCommand(command);
+
+    // Stop speech recognition and resume wake word detection
+    await _speech.stop();
+    setState(() {
+      _isListeningForCommand = false;
+      _currentStatus = 'Ready for wake word';
+    });
+
+    await _voiceAssistant.startListening(); // Resume wake word detection
+  }
+
+  Future<void> _interpretCommand(String command) async {
+    // Add your command interpretation logic here
+    String response = 'Executing command: $command';
+
+    // Example command interpretation
+    command = command.toLowerCase();
+    if (command.contains('turn on') || command.contains('enable')) {
+      response = 'Turning on requested feature';
+    } else if (command.contains('turn off') || command.contains('disable')) {
+      response = 'Turning off requested feature';
+    }
+
+    setState(() {
+      _commandLogs.insert(
+        0,
+        CommandLog(
+          type: LogType.execution,
+          message: response,
+          timestamp: DateTime.now(),
+        ),
+      );
+    });
+  }
+
+  void _handleError(String error) {
+    setState(() {
+      _commandLogs.insert(
+        0,
+        CommandLog(
+          type: LogType.error,
+          message: error,
+          timestamp: DateTime.now(),
+        ),
+      );
+      _currentStatus = 'Error occurred';
+    });
+  }
+
   Future<void> _toggleListening() async {
     if (!_isInitialized) return;
 
     try {
       if (_isListening) {
         await _voiceAssistant.stopListening();
+        if (_isListeningForCommand) {
+          await _speech.stop();
+        }
       } else {
         await _voiceAssistant.startListening();
       }
       setState(() {
         _isListening = !_isListening;
-        _currentStatus = _isListening ? 'Listening...' : 'Stopped';
+        _isListeningForCommand = false;
+        _currentStatus =
+            _isListening ? 'Listening for wake word...' : 'Stopped';
       });
     } catch (e) {
       setState(() {
@@ -153,6 +236,7 @@ class _HomePageState extends State<HomePage> implements VoiceAssistantCallback {
   @override
   void dispose() {
     _voiceAssistant.dispose();
+    _speech.stop();
     super.dispose();
   }
 
@@ -161,58 +245,23 @@ class _HomePageState extends State<HomePage> implements VoiceAssistantCallback {
   void onWakeWordDetected() {
     setState(() {
       _commandLogs.insert(
-          0,
-          CommandLog(
-            type: LogType.wake,
-            message: 'Wake word detected',
-            timestamp: DateTime.now(),
-          ));
-      _currentStatus = 'Listening for command...';
+        0,
+        CommandLog(
+          type: LogType.wake,
+          message: 'Wake word detected',
+          timestamp: DateTime.now(),
+        ),
+      );
     });
-  }
-
-  @override
-  void onCommandRecognized(String command) {
-    setState(() {
-      _commandLogs.insert(
-          0,
-          CommandLog(
-            type: LogType.command,
-            message: 'Command: $command',
-            timestamp: DateTime.now(),
-          ));
-      _currentStatus = 'Processing command...';
-    });
-  }
-
-  @override
-  void onCommandExecuted(String command, Map<String, String> parameters) {
-    setState(() {
-      _commandLogs.insert(
-          0,
-          CommandLog(
-            type: LogType.execution,
-            message: 'Executed: $command\nParameters: $parameters',
-            timestamp: DateTime.now(),
-          ));
-      _currentStatus = 'Command executed';
-    });
+    _startListeningForCommand();
   }
 
   @override
   void onError(String error) {
-    setState(() {
-      _commandLogs.insert(
-          0,
-          CommandLog(
-            type: LogType.error,
-            message: error,
-            timestamp: DateTime.now(),
-          ));
-      _currentStatus = 'Error occurred';
-    });
+    _handleError(error);
   }
 
+  // UI Widgets remain the same as in the original code
   @override
   Widget build(BuildContext context) {
     if (_permissionStatus.any((status) => !status.isGranted)) {
@@ -343,6 +392,7 @@ class _HomePageState extends State<HomePage> implements VoiceAssistantCallback {
 
   IconData _getStatusIcon() {
     if (!_isInitialized) return Icons.error_outline;
+    if (_isListeningForCommand) return Icons.record_voice_over;
     if (_isListening) return Icons.mic;
     return Icons.mic_none;
   }

@@ -67,8 +67,11 @@ class WakeWordDetector(
 
         val text = hypothesis.hypstr
         if (text.contains(config.wakeWord)) {
+            Log.d(TAG, "onPartialResult: wake word detected")
             coroutineScope.launch {
                 _wakeWordDetected.emit(Unit)
+                // Fix for bug where wake word is detected multiple times
+                restartListening()
             }
         }
     }
@@ -80,6 +83,7 @@ class WakeWordDetector(
 
         val text = hypothesis.hypstr
         if (text.contains(config.wakeWord)) {
+            Log.d(TAG, "onResult: wake word detected")
             coroutineScope.launch {
                 // _wakeWordDetected.emit(Unit)
             }
@@ -91,6 +95,11 @@ class WakeWordDetector(
     }
 
     override fun onTimeout() {}
+
+    fun restartListening() {
+        recognizer?.stop()
+        recognizer?.startListening(WAKE_WORD_SEARCH, 10000)
+    }
 
     fun destroy() {
         recognizer?.shutdown()

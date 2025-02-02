@@ -12,12 +12,14 @@ class MethodChannelFlutterVox extends FlutterVoxPlatform {
   Future<void> initialize({
     String? wakePath,
     String? wakeWord,
+    bool? enableVoiceAssistant = true,
     Map<String, dynamic>? config,
   }) async {
     try {
       await _channel.invokeMethod('initialize', {
         'wakePath': wakePath,
         'wakeWord': wakeWord,
+        'voiceAssistantEnabled': enableVoiceAssistant,
         'config': config,
       });
     } on PlatformException catch (e) {
@@ -66,49 +68,6 @@ class MethodChannelFlutterVox extends FlutterVoxPlatform {
   }
 
   @override
-  Future<void> addCommand(String command, List<String> parameters) async {
-    try {
-      await _channel.invokeMethod('addCommand', {
-        'command': command,
-        'parameters': parameters,
-      });
-    } on PlatformException catch (e) {
-      throw VoiceAssistantException(
-        'Failed to add command: ${e.message}',
-        code: e.code,
-      );
-    }
-  }
-
-  @override
-  Future<void> removeCommand(String command) async {
-    try {
-      await _channel.invokeMethod('removeCommand', {
-        'command': command,
-      });
-    } on PlatformException catch (e) {
-      throw VoiceAssistantException(
-        'Failed to remove command: ${e.message}',
-        code: e.code,
-      );
-    }
-  }
-
-  @override
-  Future<List<String>> getAvailableCommands() async {
-    try {
-      final result =
-          await _channel.invokeMethod<List<dynamic>>('getAvailableCommands');
-      return result?.cast<String>() ?? [];
-    } on PlatformException catch (e) {
-      throw VoiceAssistantException(
-        'Failed to get available commands: ${e.message}',
-        code: e.code,
-      );
-    }
-  }
-
-  @override
   Future<void> setLauncherMode(bool enabled) async {
     try {
       await _channel.invokeMethod('setLauncherMode', {
@@ -135,4 +94,11 @@ class MethodChannelFlutterVox extends FlutterVoxPlatform {
       );
     }
   }
+}
+
+class MethodChannelFlutterVoxService extends MethodChannelFlutterVox {
+  final _serviceChannel = MethodChannel('flutter_vox.service');
+
+  @override
+  MethodChannel get _channel => _serviceChannel;
 }
