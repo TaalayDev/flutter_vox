@@ -1,12 +1,13 @@
 # FlutterVox
 
-A Flutter plugin that implements voice assistant functionality with background listening and voice command processing capabilities for Android devices. FlutterVox provides both launcher and background service modes, making it suitable for a wide range of voice-controlled applications.
+A Flutter plugin that implements wake word functionality for Android and iOS devices.
 
 > ⚠️ **Development Status**: This plugin is currently in early development and is not ready for production use. Development may be discontinued if better alternatives become available. Consider using established solutions like [alan_voice](https://pub.dev/packages/alan_voice) or [picovoice_flutter](https://pub.dev/packages/picovoice_flutter) for production applications.
 
 ## System Requirements
 
 - Android API Level 21+ (Android 5.0 or higher)
+- iOS 12.0 or higher
 - Flutter 3.3.0 or higher
 - Dart SDK 3.6.0 or higher
 - Kotlin 1.8.22 or higher
@@ -42,6 +43,17 @@ dependencies:
         <action android:name="android.service.voice.VoiceInteractionService" />
     </intent>
 </queries>
+```
+
+### iOS Setup
+
+1. Add the following permissions to your Info.plist (`ios/Runner/Info.plist`):
+
+```xml
+<key>NSMicrophoneUsageDescription</key>
+<string>Microphone access is required for voice assistant functionality.</string>
+<key>NSSpeechRecognitionUsageDescription</key>
+<string>Speech recognition is required for voice assistant functionality.</string>
 ```
 
 2. Request runtime permissions in your app:
@@ -113,80 +125,6 @@ class MyVoiceHandler implements VoiceAssistantCallback {
   }
 }
 ```
-
-## Advanced Features
-
-### Background Service Mode
-
-```dart
-// Enable background service mode
-await flutterVox.setBackgroundMode(true);
-
-// The service will continue running even when the app is in background
-// A notification will be shown to indicate the service status
-```
-
-### Launcher Mode
-
-```dart
-// Enable launcher mode
-await flutterVox.setLauncherMode(true);
-
-// The app can now be set as the default launcher
-// Voice commands will be available from the home screen
-```
-
-## Performance Considerations
-
-FlutterVox is designed with performance and battery life in mind:
-
-- Wake word detection runs locally for minimal latency
-- Background service uses less than 50MB of memory
-- CPU usage in idle state stays under 2%
-- Battery impact is optimized to less than 5% additional drain
-- Automatic service management to prevent resource leaks
-
-## Error Handling
-
-FlutterVox provides dedicated error handling through exceptions:
-
-```dart
-try {
-  await flutterVox.startListening();
-} on VoiceAssistantException catch (e) {
-  print('Error code: ${e.code}');
-  print('Error message: ${e.message}');
-}
-```
-
-## Common Issues and Solutions
-
-### Service Not Starting
-
-If the voice assistant service fails to start:
-
-1. Verify all required permissions are granted
-2. Check Android Manifest configuration
-3. Ensure device meets minimum API level requirement
-4. Verify background service restrictions on the device
-
-### High Battery Usage
-
-If experiencing higher than expected battery drain:
-
-1. Check if continuous listening is necessary
-2. Verify wake word sensitivity settings
-3. Monitor for wake word false positives
-4. Ensure proper cleanup when stopping the service
-
-### Memory Management
-
-To maintain optimal memory usage:
-
-1. Call `dispose()` when the voice assistant is no longer needed
-2. Monitor memory usage through Android Studio
-3. Implement proper lifecycle management
-4. Clear resources in background service when stopped
 
 ## License
 
