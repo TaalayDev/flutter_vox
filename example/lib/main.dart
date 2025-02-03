@@ -31,7 +31,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> implements VoiceAssistantCallback {
-  static const wakeWord = 'flutter';
+  static const wakeWord = 'Flutter';
 
   final FlutterVox _voiceAssistant = FlutterVox();
   final List<CommandLog> _commandLogs = [];
@@ -72,9 +72,9 @@ class _HomePageState extends State<HomePage> implements VoiceAssistantCallback {
     });
 
     final permissions = await [
-      Permission.microphone,
-      Permission.speech,
-      Permission.notification,
+      // Permission.microphone,
+      // Permission.speech,
+      // Permission.notification,
       Permission.storage
     ].request();
 

@@ -37,6 +37,8 @@ flutter:
       android:
         package: io.github.taalaydev.fluttervox.flutter_vox
         pluginClass: FlutterVoxPlugin
+      ios:
+        pluginClass: FlutterVoxPlugin
 
   # To add assets to your plugin package, add an assets section, like this:
   # assets:
